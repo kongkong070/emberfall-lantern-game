@@ -12,11 +12,11 @@ export const LANTERN = { x: 640, y: 360, radius: 46, maxLight: 100 };
 
 export const PLAYER = {
   radius: 16,
-  speed: 330,
+  speed: 360,
   maxHearts: 5,
-  startHearts: 3,
+  startHearts: 4,
   invulnerable: 1.2,
-  fireInterval: 0.22,
+  fireInterval: 0.16,
   bulletSpeed: 740,
   bulletDamage: 1,
   bulletRadius: 6,
@@ -27,25 +27,27 @@ export const WAVES = { total: 10, betweenSeconds: 0 };
 /** Enemy kinds. Wisps hunt the lantern; motes and splitters hunt the keeper;
  *  spitters keep their distance and shoot dark orbs; the Herald is wave 10. */
 export const ENEMY = {
-  mote:     { hp: 2,  speed: 78,  radius: 14, score: 10,  lanternDamage: 6,  touch: 1 },
-  wisp:     { hp: 1,  speed: 122, radius: 10, score: 15,  lanternDamage: 5,  touch: 1 },
-  splitter: { hp: 4,  speed: 62,  radius: 18, score: 20,  lanternDamage: 8, touch: 1 },
+  mote:     { hp: 2,  speed: 86,  radius: 14, score: 10,  lanternDamage: 5,  touch: 1 },
+  wisp:     { hp: 1,  speed: 130, radius: 10, score: 15,  lanternDamage: 4,  touch: 1 },
+  splitter: { hp: 4,  speed: 62,  radius: 18, score: 20,  lanternDamage: 6, touch: 1 },
   spitter:  { hp: 3,  speed: 56,  radius: 15, score: 25,  lanternDamage: 0,  touch: 1 },
   herald:   { hp: 70, speed: 46,  radius: 42, score: 500, lanternDamage: 25, touch: 1 },
 };
 
 export const ORB = { speed: 210, radius: 8, lanternDamage: 6 };
 
-/** How a wave is built: count grows with the wave, the mix opens up. */
+/** How a wave is built: count grows with the wave, the mix opens up.
+ *  Waves are dense on purpose: the field should always feel full of
+ *  shades closing in, never an empty dark room. */
 export function waveComposition(wave) {
-  const count = 6 + wave * 3;
+  const count = 7 + wave * 3;
   const list = [];
   for (let i = 0; i < count; i += 1) {
     let kind = 'mote';
     const roll = (i * 37 + wave * 11) % 100;
     if (wave >= 10 && i === 0) kind = 'herald';
-    else if (wave >= 4 && roll < 18) kind = 'splitter';
-    else if (wave >= 3 && roll < 38) kind = 'spitter';
+    else if (wave >= 3 && roll < 18) kind = 'splitter';
+    else if (wave >= 2 && roll < 38) kind = 'spitter';
     else if (wave >= 2 && roll < 62) kind = 'wisp';
     list.push(kind);
   }
@@ -54,7 +56,7 @@ export function waveComposition(wave) {
 
 /** Seconds between spawns inside a wave; waves get denser. */
 export function spawnInterval(wave) {
-  return Math.max(0.35, 1.05 - wave * 0.07);
+  return Math.max(0.3, 0.9 - wave * 0.06);
 }
 
 /** The seven upgrades offered between waves (three are drawn each time). */

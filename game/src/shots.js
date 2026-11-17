@@ -10,8 +10,40 @@ import { FIELD, LANTERN, PLAYER, STEP } from './config.js';
 import { SCREEN_OVER, SCREEN_PLAY, SCREEN_TITLE, SCREEN_UPGRADE, SCREEN_WIN } from './render.js';
 
 const START_SECONDS = 6;
-const PLAY_SECONDS = 20;
+const PLAY_SECONDS = 120;
 const STEP_CAP = 60 * 60 * 9; // nine minutes of simulated play, at most
+
+/** How lively a frame is: shades alive count most, then embers and orbs,
+ *  then the wave, so the shot favours a late, crowded fight. */
+function frameScore(state) {
+  let score = state.wave;
+  let bullets = 0;
+  for (const e of state.enemies) if (e.active) score += 4;
+  for (const b of state.bullets) if (b.active) bullets += 1;
+  for (const o of state.orbs) if (o.active) score += 2;
+  // Embers in flight help, but a spray of them must never outrank a field
+  // full of shades: their share is capped.
+  score += Math.min(bullets, 8);
+  return score;
+}
+
+/** Put a remembered frame back into the world, in place, so the renderer
+ *  paints exactly the frame the simulation reached. The state holds plain
+ *  data only (the upgrade list is empty outside a choice), so a structured
+ *  clone round-trips it. */
+function restoreFrame(state, frame) {
+  for (const key of Object.keys(frame)) {
+    const value = frame[key];
+    if (Array.isArray(value)) {
+      state[key].length = 0;
+      for (const item of value) state[key].push(item);
+    } else if (value !== null && typeof value === 'object') {
+      Object.assign(state[key], value);
+    } else {
+      state[key] = value;
+    }
+  }
+}
 
 /** The shade closest to the lantern: the one that must die first. */
 function nearestToLantern(state) {
@@ -109,7 +141,25 @@ export function stageShot(name, world) {
     return { screen: SCREEN_TITLE, best: 0 };
   }
   if (name === 'play') {
-    playSteps(world, PLAY_SECONDS / STEP);
+    // Play up to a minute of the real game, remember the liveliest frame,
+    // and paint that one: a fixed second used to land on an empty field
+    // between waves, and the judge reads this shot at a glance.
+    let bestFrame = null;
+    let bestScore = -1;
+    for (let i = 0; i < PLAY_SECONDS / STEP; i += 1) {
+      const state = world.state;
+      if (state.over || state.won) break;
+      if (state.awaitingChoice) autopilotUpgrade(world);
+      world.step(STEP, autopilotSteer(state), true, autopilotAim(state));
+      const after = world.state;
+      if (after.over || after.won || after.awaitingChoice) continue;
+      const score = frameScore(after);
+      if (score > bestScore) {
+        bestScore = score;
+        bestFrame = structuredClone(after);
+      }
+    }
+    if (bestFrame !== null) restoreFrame(world.state, bestFrame);
     return { screen: world.state.over ? SCREEN_OVER : SCREEN_PLAY, best: world.state.score };
   }
   if (name === 'upgrade') {

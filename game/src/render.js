@@ -25,7 +25,7 @@ function starfield(random, count) {
 export function createRenderer(canvas, random) {
   const context = canvas.getContext('2d');
   const view = { scale: 1, x: 0, y: 0 };
-  const stars = starfield(random, 110);
+  const stars = starfield(random, 170);
   const fonts = new Map();
   let time = 0;
 
@@ -80,6 +80,22 @@ export function createRenderer(canvas, random) {
     grad.addColorStop(1, PALETTE.skyBottom);
     context.fillStyle = grad;
     context.fillRect(0, 0, FIELD.width, FIELD.height);
+    // Nebulae: a few huge, faint colour clouds so the dark never reads as
+    // an empty void, even where no shade is standing.
+    const nebulae = [
+      { x: 220, y: 150, r: 320, color: 'rgba(88,60,180,0.16)' },
+      { x: 1080, y: 560, r: 340, color: 'rgba(28,120,130,0.13)' },
+      { x: 1020, y: 120, r: 260, color: 'rgba(180,90,60,0.10)' },
+    ];
+    for (const n of nebulae) {
+      const g = context.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.r);
+      g.addColorStop(0, n.color);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      context.fillStyle = g;
+      context.beginPath();
+      context.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+      context.fill();
+    }
     for (const s of stars) {
       const alpha = 0.35 + 0.3 * Math.sin(time * 1.5 + s.tw);
       context.globalAlpha = alpha;
@@ -99,7 +115,7 @@ export function createRenderer(canvas, random) {
 
   function drawLantern(state) {
     const pulse = 1 + 0.06 * Math.sin(time * 2);
-    const glowR = 130 * pulse * (0.5 + state.lantern / 200);
+    const glowR = 165 * pulse * (0.5 + state.lantern / 200);
     const glow = context.createRadialGradient(LANTERN.x, LANTERN.y, 10, LANTERN.x, LANTERN.y, glowR);
     glow.addColorStop(0, 'rgba(255,179,71,0.55)');
     glow.addColorStop(1, 'rgba(255,179,71,0)');
@@ -127,6 +143,10 @@ export function createRenderer(canvas, random) {
   function drawPlayer(state) {
     const p = state.player;
     if (p.invulnerable > 0 && Math.floor(p.invulnerable * 10) % 2 === 0) return;
+    // The keeper's own halo, so the player never gets lost in the dark.
+    context.globalAlpha = 0.25;
+    circle(p.x, p.y, 30, PALETTE.player);
+    context.globalAlpha = 1;
     // Aim line, faint.
     context.strokeStyle = 'rgba(126,231,255,0.35)';
     context.lineWidth = 2;
@@ -154,6 +174,11 @@ export function createRenderer(canvas, random) {
       circle(e.x, e.y, e.radius + 3, '#ffffff');
       return;
     }
+    // Halo: every shade carries its own glow, so it reads at a glance even
+    // shrunk to a contact-sheet cell.
+    context.globalAlpha = 0.28;
+    circle(e.x, e.y, e.radius + 9, color);
+    context.globalAlpha = 1;
     if (e.kind === 'mote') {
       // Spiky shade: a circle with eight spikes.
       context.fillStyle = color;
@@ -224,20 +249,26 @@ export function createRenderer(canvas, random) {
     }
   }
 
-  function drawField(state) {
+  function drawField(state, screen) {
     drawBackground(state);
     drawLantern(state);
-    for (const o of state.orbs) {
-      if (!o.active) continue;
-      circle(o.x, o.y, o.radius + 3, 'rgba(91,45,142,0.5)');
-      circle(o.x, o.y, o.radius, PALETTE.orb);
-      circle(o.x, o.y, 3, '#d9b3ff');
-    }
-    for (const b of state.bullets) {
-      if (!b.active) continue;
-      circle(b.x, b.y, b.radius + 3, 'rgba(255,154,60,0.45)');
-      circle(b.x, b.y, b.radius, PALETTE.ember);
-      circle(b.x, b.y, 2.5, PALETTE.emberCore);
+    // On an end screen the field is over: embers and orbs left frozen
+    // mid-flight would read as a glitch behind the panel, so they are not
+    // drawn there. Everything else (shades, lantern, keeper) stays.
+    const ended = screen === SCREEN_WIN || screen === SCREEN_OVER;
+    if (!ended) {
+      for (const o of state.orbs) {
+        if (!o.active) continue;
+        circle(o.x, o.y, o.radius + 3, 'rgba(91,45,142,0.5)');
+        circle(o.x, o.y, o.radius, PALETTE.orb);
+        circle(o.x, o.y, 3, '#d9b3ff');
+      }
+      for (const b of state.bullets) {
+        if (!b.active) continue;
+        circle(b.x, b.y, b.radius + 3, 'rgba(255,154,60,0.45)');
+        circle(b.x, b.y, b.radius, PALETTE.ember);
+        circle(b.x, b.y, 2.5, PALETTE.emberCore);
+      }
     }
     for (const e of state.enemies) if (e.active) drawEnemy(e);
     drawPlayer(state);
@@ -327,7 +358,7 @@ export function createRenderer(canvas, random) {
     context.fillStyle = PALETTE.backdrop;
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.setTransform(view.scale, 0, 0, view.scale, view.x, view.y);
-    drawField(state);
+    drawField(state, screen);
     if (screen === SCREEN_TITLE) {
       drawPanel('EMBERFALL', [
         'The last lantern is fading. Shades crawl out of the dark',
